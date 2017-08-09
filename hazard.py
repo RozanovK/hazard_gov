@@ -1,9 +1,16 @@
 from urllib2 import urlopen
 import xml.etree.ElementTree as ET
 from jinja2 import Environment, FileSystemLoader
+import configparser
 
+settings = configparser.ConfigParser()
+settings.read('hazard.ini')
+api_time = settings.get('API', 'API_TIME')
+api_register = settings.get('API', 'API_REGISTER')
+last_modif = settings.get('Dates', 'Last_Modif')
+output_file = settings.get('Paths', 'Output_File')
 
-content = urlopen("https://www.hazard.mf.gov.pl/api/Register").read()
+content = urlopen(api_register).read()
 root = ET.fromstring(content)
 values = []
 namespace = root.tag.split("Rejestr", 1)[0]
