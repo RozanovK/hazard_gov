@@ -4,18 +4,34 @@ from jinja2 import Environment, FileSystemLoader
 import configparser
 from datetime import datetime
 import os
+import logging
+import logging.handlers
 
 CONFIG_FILE= 'hazard.ini'
-TIME_F = '%Y-%m-%dT%H:%M:%S'
+
+def log(logger, log_file):
+	handler = logging.FileHandler(log_file)
+	handler.setLevel(logging.INFO)
+	formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+	handler.setFormatter(formatter)
+	logger.addHandler(handler)
+
+	def log_syslog(logger):
+		handler = logging.handlers.SysLogHandler(address = '/dev/log')
+		logger.addHandler(handler)
+		formatter = logging.Formatter('hazard_gov: [%(levelname)s] %(message)s')
+		handler.setFormatter(formatter)
+
+	log_syslog(logger)	
 
 def get_config(config_file=CONFIG_FILE):
 	settings = configparser.ConfigParser()
 	settings.read(config_file)
-	api_time = settings.get('API', 'API_TIME')
-	api_register = settings.get('API', 'API_REGISTER')
-	output_file = settings.get('Paths', 'Output_File')
-	return api_time, api_register, output_file
-
+	api_time = settings.get('API', 'api_time')
+	api_register = settings.get('API', 'api_register')
+	output_file = settings.get('Paths', 'output_file')
+	log_file = settings.get('Paths', 'log_file')
+	return api_time, api_register, output_file, log_file
 
 def get_data(api_register):
 	content = urlopen(api_register).read()
@@ -33,7 +49,7 @@ def get_data(api_register):
 def get_r_time(api_time):    #get time of last register modification
 	content = urlopen(api_time).read()
 	root = ET.fromstring(content)
-	time_register = datetime.strptime(root.text, TIME_F)
+	time_register = datetime.strptime(root.text, '%Y-%m-%dT%H:%M:%S')
 	return time_register
 
 def get_f_time(output_file):	#get last modification of output file
@@ -41,7 +57,17 @@ def get_f_time(output_file):	#get last modification of output file
 		last_modified_date = datetime.fromtimestamp(os.path.getmtime(output_file))
 	else:
     		last_modified_date = datetime.fromtimestamp(0)
+		logger.info("No output file found!")
 	return last_modified_date
+
+def check_time(api_time, output_file, api_register, config_file=CONFIG_FILE):
+	r_t = get_r_time(api_time)
+	f_t = get_f_time(output_file)
+	if r_t > f_t:
+		logger.info("Generating file...")
+		generate_file(output_file, api_register, config_file)
+	else:
+		logger.info("No updates found!")
 
 def generate_file(output_file, api_register, config_file=CONFIG_FILE):
 	values = get_data(api_register)
@@ -52,33 +78,15 @@ def generate_file(output_file, api_register, config_file=CONFIG_FILE):
 	with open(output_file, "wb") as f:
     		f.write(output)
 	f.close()
-
-	def modification_time(config_file):
-		now = datetime.now().strftime(TIME_F)
-
-		settings = configparser.ConfigParser()
-		settings.read(config_file)
-		settings.set('Dates', 'Last_Modif', now)
-
-		with open(config_file, 'w') as f:
-			settings.write(f)
-		f.close()
-	modification_time(config_file)
-	
-
-def check_time(api_time, output_file, api_register, config_file=CONFIG_FILE):
-	r_t = get_r_time(api_time)
-	f_t = get_f_time(output_file)
-	if r_t > f_t:
-		generate_file(output_file, api_register, config_file)
-	else:
-		print ("No updates found!")
-		 
+	logger.info("File was succesfully generated!")
 
 
 if __name__ == "__main__":
-
-	api_time, api_register, output_file = get_config()
+	logging.basicConfig(level=logging.INFO)
+	logger = logging.getLogger(__name__)
+	
+	api_time, api_register, output_file, log_file = get_config()
+	log(logger, log_file)
 	check_time(api_time, output_file, api_register)
 
 
