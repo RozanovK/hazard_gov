@@ -6,8 +6,18 @@ from datetime import datetime
 import os
 import logging
 import logging.handlers
+from optparse import OptionParser
+
 
 CONFIG_FILE= 'hazard.ini'
+
+def create_menu():
+	parser = OptionParser()
+	parser.add_option("--config",
+                  action="store", type="string", dest="config")
+	parser.add_option("--force",
+		action="store_true", dest="force")
+	(options, args) = parser.parse_args()
 
 def log(logger, log_file):
 	handler = logging.FileHandler(log_file)
@@ -85,6 +95,8 @@ def generate_file(output_file, api_register,zone_file, config_file=CONFIG_FILE):
 if __name__ == "__main__":
 	logging.basicConfig(level=logging.INFO)
 	logger = logging.getLogger(__name__)
+	
+	create_menu()
 	
 	api_time, api_register, output_file, log_file, zone_file = get_config()
 	log(logger, log_file)
