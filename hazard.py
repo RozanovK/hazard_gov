@@ -10,16 +10,20 @@ from optparse import OptionParser
 
 
 CONFIG_FILE= 'hazard.ini'
+LOG_FILE='/home/rozanovk/hazard.log'
 
 def create_menu():
 	parser = OptionParser()
 	parser.add_option("--config",
                   action="store", type="string", dest="config")
 	parser.add_option("--force",
-		action="store_true", dest="force")
+		action="store_true", dest="force", default=False)
 	(options, args) = parser.parse_args()
+	return options, args
 
-def log(logger, log_file):
+def log(log_file=LOG_FILE):
+	logging.basicConfig(level=logging.INFO)
+	logger = logging.getLogger(__name__)
 	handler = logging.FileHandler(log_file)
 	handler.setLevel(logging.INFO)
 	formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -32,7 +36,8 @@ def log(logger, log_file):
 		formatter = logging.Formatter('hazard_gov: [%(levelname)s] %(message)s')
 		handler.setFormatter(formatter)
 
-	log_syslog(logger)	
+	log_syslog(logger)
+	return logger	
 
 def get_config(config_file=CONFIG_FILE):
 	settings = configparser.ConfigParser()
@@ -71,16 +76,16 @@ def get_f_time(output_file):	#get last modification of output file
 		logger.info("No output file found!")
 	return last_modified_date
 
-def check_time(api_time, output_file, zone_file, api_register, config_file=CONFIG_FILE):
+def check_time(api_time, output_file, zone_file, api_register, logger):
 	r_t = get_r_time(api_time)
 	f_t = get_f_time(output_file)
 	if r_t > f_t:
 		logger.info("Generating file...")
-		generate_file(output_file, api_register,zone_file, config_file)
+		generate_file(output_file, api_register,zone_file)
 	else:
 		logger.info("No updates found!")
 
-def generate_file(output_file, api_register,zone_file, config_file=CONFIG_FILE):
+def generate_file(output_file, api_register,zone_file, logger):
 	values = get_data(api_register)
 	env = Environment(loader=FileSystemLoader('templates'))
 	template = env.get_template('template.html')
@@ -91,16 +96,30 @@ def generate_file(output_file, api_register,zone_file, config_file=CONFIG_FILE):
 	f.close()
 	logger.info("File was succesfully generated!")
 
+def set_config_file(config_file):
+	try:
+		api_time, api_register, output_file, log_file, zone_file = get_config(options.config)
+		return api_time, api_register, output_file, log_file, zone_file
+	except configparser.NoSectionError:
+		logger = log()
+		logger.info("No such file or unsupported file type!")
+		exit()
+
 
 if __name__ == "__main__":
-	logging.basicConfig(level=logging.INFO)
-	logger = logging.getLogger(__name__)
+	options, args = create_menu()
+
+	if options.config:
+		api_time, api_register, output_file, log_file, zone_file = set_config_file(options.config)
+	else:
+		api_time, api_register, output_file, log_file, zone_file = get_config()
+	logger = log(log_file)
 	
-	create_menu()
-	
-	api_time, api_register, output_file, log_file, zone_file = get_config()
-	log(logger, log_file)
-	check_time(api_time, output_file, zone_file, api_register)
+
+	if options.force:
+		generate_file(output_file, api_register,zone_file, logger)
+	else:
+		check_time(api_time, output_file, zone_file, api_register, logger)
 
 
 
