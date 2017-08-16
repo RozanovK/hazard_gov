@@ -1,5 +1,5 @@
 {% for value in values %}
 # Lp: {{ value[0] }}  # dodano: {{ value[1] }}
-zone "{{ value[2] }}" { type master; file "/etc/bind/db.hazard-redirect"; };
+zone "{{ value[2] }}" { type master; file "{{ zone_file }}"; };
 
 {%endfor%} 
